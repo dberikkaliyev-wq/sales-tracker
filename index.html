@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Учёт продаж</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<style>
+  :root {
+    --bg: #F5F2EC;
+    --ink: #262220;
+    --ink-soft: #6B6259;
+    --accent: #D9603B;
+    --accent-dark: #B84E2E;
+    --line: #E2DBCC;
+    --card: #FFFFFF;
+    --green: #4C8B5C;
+    --red: #C0463A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  .screen { display: none; min-height: 100vh; padding: 20px 16px 60px; }
+  .screen.active { display: block; }
+
+  .wrap { max-width: 460px; margin: 0 auto; }
+
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--ink-soft); font-size: 14px; margin: 0 0 28px; }
+
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: 18px 0 6px; }
+  input[type=text], input[type=password], input[type=number] {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--line);
+    background: var(--card);
+    font-size: 16px;
+    color: var(--ink);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 22px;
+    text-align: center;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:active { background: var(--accent-dark); }
+  .btn-primary:disabled { background: #D8CFC2; color: #998F80; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--ink-soft); border: 1.5px solid var(--line); margin-top: 10px; }
+
+  .error-box {
+    background: #FBE7E3;
+    color: var(--red);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    margin-top: 14px;
+    display: none;
+  }
+  .success-box {
+    background: #E6F0E8;
+    color: var(--green);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    margin-top: 14px;
+    display: none;
+  }
+
+  /* HEADER on app screens */
+  .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .app-header .who { font-size: 14px; color: var(--ink-soft); }
+  .app-header .who b { color: var(--ink); }
+  .logout { font-size: 13px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 0; }
+
+  /* MODE TABS */
+  .tabs {
+    display: flex;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 4px;
+    margin-bottom: 22px;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .hint {
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: #F0EAE0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+  }
+
+  /* PHOTO PICKER */
+  .photo-row { display: flex; gap: 10px; margin-top: 18px; }
+  .photo-btn {
+    flex: 1;
+    padding: 14px 8px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--line);
+    background: var(--bg);
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .preview-wrap { margin-top: 14px; text-align: center; }
+  .preview-wrap img { max-width: 100%; max-height: 220px; border-radius: 12px; border: 1px solid var(--line); }
+
+  .ocr-status { font-size: 13px; color: var(--ink-soft); margin-top: 10px; display: none; }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .found-box {
+    background: #EFF5F0;
+    border: 1px solid #CFE3D2;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    margin-top: 14px;
+    display: none;
+  }
+  .found-box b { display: block; margin-bottom: 2px; }
+
+  footer.note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 30px;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ============ ЭКРАН ВХОДА ============ -->
+<div class="screen active" id="screen-login">
+  <div class="wrap" style="padding-top:60px;">
+    <h1>Учёт продаж</h1>
+    <p class="subtitle">Войдите, чтобы зафиксировать приход, продажу или возврат</p>
+
+    <div class="card">
+      <label for="login-name">Имя</label>
+      <input type="text" id="login-name" placeholder="Например, Алия" autocomplete="off">
+
+      <label for="login-pass">Пароль</label>
+      <input type="password" id="login-pass" placeholder="••••">
+
+      <button class="btn btn-primary" id="btn-login">Войти</button>
+      <div class="error-box" id="login-error"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ОСНОВНОЙ ЭКРАН ============ -->
+<div class="screen" id="screen-app">
+  <div class="wrap">
+    <div class="app-header">
+      <div class="who">Вы вошли как <b id="employee-name">—</b></div>
+      <button class="logout" id="btn-logout">Выйти</button>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-mode="arrival">Приход</div>
+      <div class="tab" data-mode="sale">Продажа</div>
+      <div class="tab" data-mode="return">Возврат</div>
+    </div>
+
+    <!-- ---- ПРИХОД ---- -->
+    <div class="card mode-panel" id="panel-arrival">
+      <div class="hint">📦 Зафиксируй новый товар на складе. Цена и клиент пока не нужны.</div>
+
+      <label for="arrival-name">Название товара</label>
+      <input type="text" id="arrival-name" placeholder="Например, Dyson HS08 Sakura Pink">
+
+      <label>Фото наклейки с IMEI</label>
+      <div class="hint" style="margin-bottom:0;">Сфотографируй наклейку с IMEI крупным планом, без бликов</div>
+      <div class="photo-row">
+        <div class="photo-btn" data-target="arrival-photo-input">📷 Сделать фото</div>
+      </div>
+      <input type="file" id="arrival-photo-input" accept="image/*" capture="environment" style="display:none;">
+      <div class="preview-wrap" id="arrival-preview-wrap" style="display:none;">
+        <img id="arrival-preview-img" src="" alt="Превью фото">
+      </div>
+      <div class="ocr-status" id="arrival-ocr-status"></div>
+
+      <label for="arrival-imei">IMEI (проверь и поправь, если нужно)</label>
+      <input type="text" id="arrival-imei" placeholder="Появится после фото">
+
+      <button class="btn btn-primary" id="btn-arrival" disabled>Зафиксировать приход</button>
+      <div class="error-box" id="arrival-error"></div>
+      <div class="success-box" id="arrival-success"></div>
+    </div>
+
+    <!-- ---- ПРОДАЖА ---- -->
+    <div class="card mode-panel" id="panel-sale" style="display:none;">
+      <div class="hint">💰 Зафиксируй продажу. Клиент, цена и фото IMEI.</div>
+
+      <label for="sale-client">Имя клиента</label>
+      <input type="text" id="sale-client" placeholder="Например, Динара">
+
+      <label for="sale-price">Цена продажи ($)</label>
+      <input type="number" id="sale-price" placeholder="420">
+
+      <label>Фото наклейки с IMEI</label>
+      <div class="hint" style="margin-bottom:0;">Сфотографируй наклейку с IMEI крупным планом, без бликов</div>
+      <div class="photo-row">
+        <div class="photo-btn" data-target="sale-photo-input">📷 Сделать фото</div>
+      </div>
+      <input type="file" id="sale-photo-input" accept="image/*" capture="environment" style="display:none;">
+      <div class="preview-wrap" id="sale-preview-wrap" style="display:none;">
+        <img id="sale-preview-img" src="" alt="Превью фото">
+      </div>
+      <div class="ocr-status" id="sale-ocr-status"></div>
+
+      <label for="sale-imei">IMEI (проверь и поправь, если нужно)</label>
+      <input type="text" id="sale-imei" placeholder="Появится после фото">
+
+      <div class="found-box" id="sale-found-box"></div>
+
+      <label for="sale-product-name" id="sale-product-name-label" style="display:none;">Название товара (не найден в таблице)</label>
+      <input type="text" id="sale-product-name" placeholder="Например, Dyson HS08 Sakura Pink" style="display:none;">
+
+      <button class="btn btn-primary" id="btn-sale" disabled>Зафиксировать продажу</button>
+      <div class="error-box" id="sale-error"></div>
+      <div class="success-box" id="sale-success"></div>
+    </div>
+
+    <!-- ---- ВОЗВРАТ ---- -->
+    <div class="card mode-panel" id="panel-return" style="display:none;">
+      <div class="hint">↩️ Товар возвращается на склад и снова становится доступен для продажи.</div>
+
+      <label>Фото наклейки с IMEI</label>
+      <div class="hint" style="margin-bottom:0;">Сфотографируй наклейку с IMEI крупным планом, без бликов</div>
+      <div class="photo-row">
+        <div class="photo-btn" data-target="return-photo-input">📷 Сделать фото</div>
+      </div>
+      <input type="file" id="return-photo-input" accept="image/*" capture="environment" style="display:none;">
+      <div class="preview-wrap" id="return-preview-wrap" style="display:none;">
+        <img id="return-preview-img" src="" alt="Превью фото">
+      </div>
+      <div class="ocr-status" id="return-ocr-status"></div>
+
+      <label for="return-imei">IMEI (проверь и поправь, если нужно)</label>
+      <input type="text" id="return-imei" placeholder="Появится после фото">
+
+      <div class="found-box" id="return-found-box"></div>
+
+      <button class="btn btn-primary" id="btn-return" disabled>Зафиксировать возврат</button>
+      <div class="error-box" id="return-error"></div>
+      <div class="success-box" id="return-success"></div>
+    </div>
+
+    <footer class="note">Учёт продаж · работает через Google Таблицы</footer>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// НАСТРОЙКА: вставь сюда свой URL веб-приложения Apps Script
+// ============================================================
+const API_URL = 'https://script.google.com/macros/s/AKfycbzTJ3hN51uOXYvnXD7Q6gHVkY26xzBgdosS36UTAKNMhC6bIjW0OPYPO0QWnoJy1A0OWw/exec';
+
+let currentEmployee = null;
+
+// ---------- API helper ----------
+async function callApi(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+// ---------- Навигация между экранами ----------
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ---------- ВХОД ----------
+document.getElementById('btn-login').addEventListener('click', async () => {
+  const name = document.getElementById('login-name').value.trim();
+  const password = document.getElementById('login-pass').value.trim();
+  const errorBox = document.getElementById('login-error');
+  errorBox.style.display = 'none';
+
+  if (!name || !password) {
+    errorBox.textContent = 'Введите имя и пароль';
+    errorBox.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  btn.textContent = 'Проверка...';
+
+  try {
+    const result = await callApi({ action: 'login', name, password });
+    if (result.ok) {
+      currentEmployee = result.employee;
+      document.getElementById('employee-name').textContent = currentEmployee;
+      showScreen('screen-app');
+    } else {
+      errorBox.textContent = result.error || 'Не удалось войти';
+      errorBox.style.display = 'block';
+    }
+  } catch (e) {
+    errorBox.textContent = 'Ошибка соединения. Проверьте интернет и попробуйте снова.';
+    errorBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Войти';
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  currentEmployee = null;
+  document.getElementById('login-name').value = '';
+  document.getElementById('login-pass').value = '';
+  showScreen('screen-login');
+});
+
+// ---------- ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ ----------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.mode;
+    document.getElementById('panel-arrival').style.display = (mode === 'arrival') ? 'block' : 'none';
+    document.getElementById('panel-sale').style.display = (mode === 'sale') ? 'block' : 'none';
+    document.getElementById('panel-return').style.display = (mode === 'return') ? 'block' : 'none';
+  });
+});
+
+// ---------- Извлечение IMEI-подобной последовательности из текста OCR ----------
+function extractImei(rawText) {
+  // IMEI обычно 14-16 цифр. Уберём всё, кроме цифр, разобьём на куски по пробелам/буквам в исходнике.
+  const matches = rawText.match(/\d[\d\s\-]{12,20}\d/g);
+  if (!matches) return '';
+  // Берём кандидат с наибольшим количеством цифр (часто это и есть IMEI)
+  let best = '';
+  matches.forEach(m => {
+    const digitsOnly = m.replace(/[^0-9]/g, '');
+    if (digitsOnly.length > best.length && digitsOnly.length >= 13 && digitsOnly.length <= 16) {
+      best = digitsOnly;
+    }
+  });
+  return best;
+}
+
+// ---------- Универсальная настройка: фото + OCR + поиск по IMEI ----------
+function setupPhotoFlow(prefix, { onImeiReady, onImeiCleared } = {}) {
+  const photoBtn = document.querySelector(`.photo-btn[data-target="${prefix}-photo-input"]`);
+  const fileInput = document.getElementById(`${prefix}-photo-input`);
+  const previewWrap = document.getElementById(`${prefix}-preview-wrap`);
+  const previewImg = document.getElementById(`${prefix}-preview-img`);
+  const ocrStatus = document.getElementById(`${prefix}-ocr-status`);
+  const imeiInput = document.getElementById(`${prefix}-imei`);
+
+  photoBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const imageUrl = URL.createObjectURL(file);
+    previewImg.src = imageUrl;
+    previewWrap.style.display = 'block';
+
+    ocrStatus.style.display = 'block';
+    ocrStatus.innerHTML = '<span class="spinner"></span>Распознаём IMEI с фото...';
+    imeiInput.value = '';
+
+    try {
+      const result = await Tesseract.recognize(file, 'eng', {
+        // tessedit_char_whitelist ограничивает символы — IMEI это только цифры
+      });
+      const text = result.data.text || '';
+      const imei = extractImei(text);
+
+      if (imei) {
+        imeiInput.value = imei;
+        ocrStatus.textContent = '✓ Распознано. Проверь цифры и поправь при необходимости.';
+        if (onImeiReady) onImeiReady(imei);
+      } else {
+        ocrStatus.textContent = 'Не удалось распознать IMEI. Введи вручную.';
+        if (onImeiCleared) onImeiCleared();
+      }
+    } catch (err) {
+      ocrStatus.textContent = 'Ошибка распознавания. Введи IMEI вручную.';
+      if (onImeiCleared) onImeiCleared();
+    }
+  });
+
+  imeiInput.addEventListener('input', () => {
+    if (onImeiCleared) onImeiCleared();
+  });
+}
+
+// ============================================================
+// ПРИХОД
+// ============================================================
+setupPhotoFlow('arrival');
+
+function checkArrivalReady() {
+  const name = document.getElementById('arrival-name').value.trim();
+  const imei = document.getElementById('arrival-imei').value.trim();
+  document.getElementById('btn-arrival').disabled = !(name && imei.length >= 13);
+}
+document.getElementById('arrival-name').addEventListener('input', checkArrivalReady);
+document.getElementById('arrival-imei').addEventListener('input', checkArrivalReady);
+
+document.getElementById('btn-arrival').addEventListener('click', async () => {
+  const productName = document.getElementById('arrival-name').value.trim();
+  const imei = document.getElementById('arrival-imei').value.trim();
+  const errorBox = document.getElementById('arrival-error');
+  const successBox = document.getElementById('arrival-success');
+  errorBox.style.display = 'none';
+  successBox.style.display = 'none';
+
+  const btn = document.getElementById('btn-arrival');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
+
+  try {
+    const result = await callApi({ action: 'saveArrival', productName, imei, employee: currentEmployee });
+    if (result.ok) {
+      successBox.textContent = '✓ Приход зафиксирован (строка ' + result.row + ')';
+      successBox.style.display = 'block';
+      document.getElementById('arrival-name').value = '';
+      document.getElementById('arrival-imei').value = '';
+      document.getElementById('arrival-preview-wrap').style.display = 'none';
+      document.getElementById('arrival-ocr-status').style.display = 'none';
+    } else {
+      errorBox.textContent = result.error || 'Не удалось сохранить';
+      errorBox.style.display = 'block';
+    }
+  } catch (e) {
+    errorBox.textContent = 'Ошибка соединения. Проверьте интернет.';
+    errorBox.style.display = 'block';
+  } finally {
+    btn.textContent = 'Зафиксировать приход';
+    checkArrivalReady();
+  }
+});
+
+// ============================================================
+// ПРОДАЖА
+// ============================================================
+const saleFoundBox = document.getElementById('sale-found-box');
+const saleProductNameInput = document.getElementById('sale-product-name');
+const saleProductNameLabel = document.getElementById('sale-product-name-label');
+
+setupPhotoFlow('sale', {
+  onImeiReady: (imei) => lookupSaleImei(imei),
+  onImeiCleared: () => {
+    saleFoundBox.style.display = 'none';
+    saleProductNameInput.style.display = 'none';
+    saleProductNameLabel.style.display = 'none';
+  }
+});
+
+document.getElementById('sale-imei').addEventListener('blur', () => {
+  const imei = document.getElementById('sale-imei').value.trim();
+  if (imei.length >= 13) lookupSaleImei(imei);
+});
+
+async function lookupSaleImei(imei) {
+  try {
+    const result = await callApi({ action: 'findByImei', imei });
+    if (result.ok && result.found) {
+      saleFoundBox.innerHTML = `<b>Найден товар:</b>${result.product.name}`;
+      saleFoundBox.style.display = 'block';
+      saleProductNameInput.style.display = 'none';
+      saleProductNameLabel.style.display = 'none';
+    } else {
+      saleFoundBox.innerHTML = `<b>Товар не найден в таблице</b>Укажи название — создадим новую строку`;
+      saleFoundBox.style.display = 'block';
+      saleProductNameInput.style.display = 'block';
+      saleProductNameLabel.style.display = 'block';
+    }
+  } catch (e) {
+    saleFoundBox.style.display = 'none';
+  }
+  checkSaleReady();
+}
+
+function checkSaleReady() {
+  const client = document.getElementById('sale-client').value.trim();
+  const price = document.getElementById('sale-price').value.trim();
+  const imei = document.getElementById('sale-imei').value.trim();
+  const needsName = saleProductNameInput.style.display !== 'none';
+  const productName = saleProductNameInput.value.trim();
+  const ready = client && price && imei.length >= 13 && (!needsName || productName);
+  document.getElementById('btn-sale').disabled = !ready;
+}
+['sale-client', 'sale-price', 'sale-imei', 'sale-product-name'].forEach(id => {
+  document.getElementById(id).addEventListener('input', checkSaleReady);
+});
+
+document.getElementById('btn-sale').addEventListener('click', async () => {
+  const client = document.getElementById('sale-client').value.trim();
+  const price = document.getElementById('sale-price').value.trim();
+  const imei = document.getElementById('sale-imei').value.trim();
+  const productName = saleProductNameInput.value.trim();
+  const errorBox = document.getElementById('sale-error');
+  const successBox = document.getElementById('sale-success');
+  errorBox.style.display = 'none';
+  successBox.style.display = 'none';
+
+  const btn = document.getElementById('btn-sale');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
+
+  try {
+    const result = await callApi({ action: 'saveSale', client, price, imei, productName, employee: currentEmployee });
+    if (result.ok) {
+      successBox.textContent = '✓ Продажа зафиксирована (строка ' + result.row + ')';
+      successBox.style.display = 'block';
+      document.getElementById('sale-client').value = '';
+      document.getElementById('sale-price').value = '';
+      document.getElementById('sale-imei').value = '';
+      saleProductNameInput.value = '';
+      saleFoundBox.style.display = 'none';
+      saleProductNameInput.style.display = 'none';
+      saleProductNameLabel.style.display = 'none';
+      document.getElementById('sale-preview-wrap').style.display = 'none';
+      document.getElementById('sale-ocr-status').style.display = 'none';
+    } else {
+      errorBox.textContent = result.error || 'Не удалось сохранить';
+      errorBox.style.display = 'block';
+    }
+  } catch (e) {
+    errorBox.textContent = 'Ошибка соединения. Проверьте интернет.';
+    errorBox.style.display = 'block';
+  } finally {
+    btn.textContent = 'Зафиксировать продажу';
+    checkSaleReady();
+  }
+});
+
+// ============================================================
+// ВОЗВРАТ
+// ============================================================
+const returnFoundBox = document.getElementById('return-found-box');
+
+setupPhotoFlow('return', {
+  onImeiReady: (imei) => lookupReturnImei(imei),
+  onImeiCleared: () => { returnFoundBox.style.display = 'none'; checkReturnReady(); }
+});
+
+document.getElementById('return-imei').addEventListener('blur', () => {
+  const imei = document.getElementById('return-imei').value.trim();
+  if (imei.length >= 13) lookupReturnImei(imei);
+});
+
+async function lookupReturnImei(imei) {
+  try {
+    const result = await callApi({ action: 'findByImei', imei });
+    if (result.ok && result.found) {
+      returnFoundBox.innerHTML = `<b>Найден товар:</b>${result.product.name} — клиент: ${result.product.client || '—'}`;
+      returnFoundBox.style.display = 'block';
+    } else {
+      returnFoundBox.innerHTML = `<b>Товар не найден в таблице</b>Проверь IMEI — возврат возможен только для существующего товара`;
+      returnFoundBox.style.display = 'block';
+    }
+  } catch (e) {
+    returnFoundBox.style.display = 'none';
+  }
+  checkReturnReady();
+}
+
+function checkReturnReady() {
+  const imei = document.getElementById('return-imei').value.trim();
+  document.getElementById('btn-return').disabled = !(imei.length >= 13);
+}
+document.getElementById('return-imei').addEventListener('input', checkReturnReady);
+
+document.getElementById('btn-return').addEventListener('click', async () => {
+  const imei = document.getElementById('return-imei').value.trim();
+  const errorBox = document.getElementById('return-error');
+  const successBox = document.getElementById('return-success');
+  errorBox.style.display = 'none';
+  successBox.style.display = 'none';
+
+  const btn = document.getElementById('btn-return');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
+
+  try {
+    const result = await callApi({ action: 'saveReturn', imei, employee: currentEmployee });
+    if (result.ok) {
+      successBox.textContent = '✓ Возврат зафиксирован (строка ' + result.row + ')';
+      successBox.style.display = 'block';
+      document.getElementById('return-imei').value = '';
+      returnFoundBox.style.display = 'none';
+      document.getElementById('return-preview-wrap').style.display = 'none';
+      document.getElementById('return-ocr-status').style.display = 'none';
+    } else {
+      errorBox.textContent = result.error || 'Не удалось сохранить';
+      errorBox.style.display = 'block';
+    }
+  } catch (e) {
+    errorBox.textContent = 'Ошибка соединения. Проверьте интернет.';
+    errorBox.style.display = 'block';
+  } finally {
+    btn.textContent = 'Зафиксировать возврат';
+    checkReturnReady();
+  }
+});
+</script>
+
+</body>
+</html>
